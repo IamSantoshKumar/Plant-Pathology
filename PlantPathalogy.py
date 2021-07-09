@@ -1,20 +1,15 @@
 import os
 import random
-import glob
 import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
-from tqdm import tqdm
 import PlantDataset
 import model
 import callbacks
 import torchvision
 from torch.nn import functional as F
-from torch.cuda import amp
-from efficientnet_pytorch import EfficientNet
 import albumentations as A
-from sklearn import model_selection
 from sklearn.metrics import accuracy_score, roc_auc_score
 import warnings
 warnings.filterwarnings('ignore')
@@ -30,21 +25,6 @@ def seed_everything(seed=42):
 mean = (0.485, 0.456, 0.406)
 std = (0.229, 0.224, 0.225)
 p=0.5
-
-class DenseCrossEntropy(nn.Module):
-    def __init__(self):
-        super(DenseCrossEntropy, self).__init__()    
-        
-    def forward(self, logits, labels):
-        logits = logits.float()
-        labels = labels.float()
-        
-        logprobs = F.log_softmax(logits, dim=-1)
-        
-        loss = -labels * logprobs
-        loss = loss.sum(-1)
-
-        return loss.mean()
 
 class EarlyStopping(callbacks.Callback):
     def __init__(self, model_path, patience=5, mode="min", delta=0.001):
@@ -156,16 +136,12 @@ if __name__=='__main__':
     
     train_images = df_train.image_id.values.tolist()
     train_images = [os.path.join(training_data_path, i + ".jpg") for i in train_images]
-    #train_targets = df_train.target.values
-
     train_targets = df_train[['healthy', 'multiple_diseases', 'rust', 'scab']].values
 
     valid_images = df_valid.image_id.values.tolist()
     valid_images = [os.path.join(training_data_path, i + ".jpg") for i in valid_images]
     valid_targets = df_valid[['healthy', 'multiple_diseases', 'rust', 'scab']].values
-    
-    #valid_targets = df_valid.target.values
-    #print(valid_targets)
+
     
     train_aug = A.Compose(
             [
@@ -196,7 +172,7 @@ if __name__=='__main__':
             augmentations=train_aug
         )
     
-    es = EarlyStopping(model_path=f'model.bin', patience=5, mode="min", delta=0.001)
     NUM_CLASS=4
+    es = EarlyStopping(model_path=f'model.bin', patience=5, mode="min", delta=0.001)
     modl = PlantModel(NUM_CLASS, pretrained=True)
     modl.fit(train_dataset, valid_dataset, train_bs=8, valid_bs=8, epochs=10, callback=[es], fp16=True, device='cuda', workers=0)
